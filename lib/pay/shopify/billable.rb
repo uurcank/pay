@@ -1,5 +1,5 @@
 module Pay
-  module ShopifyProcessor
+  module Shopify
     class Billable
       attr_reader :pay_customer
 
