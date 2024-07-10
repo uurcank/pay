@@ -2,6 +2,21 @@
 
 ### Unreleased
 
+### 7.3.0
+
+* Stripe v12
+* Accept Stripe Connect live and test webhooks in production #1001
+* Only sync Stripe Checkout Session charge if it exists
+
+### 7.2.1
+
+* Use empty string to resume / unpause Stripe subscriptions. #992
+
+### 7.2.0
+
+* Add devcontainer for easier development #988
+* Stripe 11.x #980
+* Update Paddle billing payment method sync #946
 * Improve compatibility for fake processor charge with other payment processors by ignoring any non-attribute params. #965
 
 ### 7.1.1
