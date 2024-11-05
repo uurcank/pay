@@ -2,7 +2,7 @@ require "test_helper"
 
 class Pay::Charge::Test < ActiveSupport::TestCase
   test "belongs to a Pay::Customer" do
-    assert_equal Pay::Customer, pay_charges(:stripe).customer.class
+    assert_equal Pay::Stripe::Customer, pay_charges(:stripe).customer.class
   end
 
   test "braintree scope" do
@@ -39,6 +39,12 @@ class Pay::Charge::Test < ActiveSupport::TestCase
 
   test "#charged_to paypal" do
     assert_equal "PayPal (test@example.org)", pay_charges(:braintree).charged_to
+  end
+
+  test "#charged_to paypal without email" do
+    charge = pay_charges(:braintree)
+    charge.update(email: nil)
+    assert_equal "PayPal", charge.charged_to
   end
 
   test "stores data about the charge" do

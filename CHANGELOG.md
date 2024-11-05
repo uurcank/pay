@@ -2,6 +2,39 @@
 
 ### Unreleased
 
+### 8.1.3
+
+* Raise `Pay::Error` instead of `StandardError` consistently
+
+### 8.1.2
+
+* Allow proration mode argument for Paddle Billing subscriptions
+* Fix Lemon Squeezy sync subscription
+* Fix typo in Paddle Billing customer `api_record`
+
+### 8.1.1
+
+* Fix `retry_failed_payment` for Stripe subscriptions #1084
+
+### 8.1.0
+
+* Stripe v13
+* Remove OpenStruct dependency
+
+### 8.0.0
+
+* [Breaking] Remove `pay_customer.payment_method_token` virtual attribute. Use `@pay_customer.update_payment_method(token)` instead.
+* [Breaking] Rename `customer` to `api_record`
+* [Breaking] Rename `update_customer!` to `update_api_record`
+* [Breaking] Rename `Pay::PaymentMethod#type` to `Pay::PaymentMethod#payment_method_type`
+* [Breaking] Remove Stripe `checkout_button` partial. Use the Checkout Session `url` directly in a link or server-side redirect.
+* Add Lemon Squeezy support
+  Supports one-time payments and subscriptions
+* Add `Pay.sync(params)` for automatically syncing Stripe Checkout Sessions and Paddle Billing transactions.
+* Lock Pay::Customer record when creating or updating Stripe customer to handle race conditions. #1027
+* LemonSqueezy & Paddle Billing will now find Customers by email since they do not allow duplicates. #1043
+* Add `Pay::Stripe::Customer#customer_session` for creating pricing tables, etc
+
 ### 7.3.0
 
 * Stripe v12

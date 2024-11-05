@@ -1,11 +1,8 @@
 module Pay
   module Stripe
-    autoload :Billable, "pay/stripe/billable"
-    autoload :Charge, "pay/stripe/charge"
-    autoload :Error, "pay/stripe/error"
-    autoload :Merchant, "pay/stripe/merchant"
-    autoload :PaymentMethod, "pay/stripe/payment_method"
-    autoload :Subscription, "pay/stripe/subscription"
+    class Error < Pay::Error
+      delegate :message, to: :cause
+    end
 
     module Webhooks
       autoload :AccountUpdated, "pay/stripe/webhooks/account_updated"
@@ -30,7 +27,7 @@ module Pay
 
     extend Env
 
-    REQUIRED_VERSION = "~> 12"
+    REQUIRED_VERSION = "~> 13"
 
     # A list of database model names that include Pay
     # Used for safely looking up models with client_reference_id
@@ -144,11 +141,13 @@ module Pay
       nil
     end
 
-    def sync_checkout_session(session_id, stripe_account: nil)
-      checkout_session = ::Stripe::Checkout::Session.retrieve({id: session_id, expand: %(payment_intent.latest_charge)}, {stripe_account: stripe_account}.compact)
+    def self.sync_checkout_session(session_id, stripe_account: nil)
+      checkout_session = ::Stripe::Checkout::Session.retrieve({id: session_id, expand: ["payment_intent.latest_charge"]}, {stripe_account: stripe_account}.compact)
       case checkout_session.mode
       when "payment"
-        Pay::Stripe::Charge.sync(checkout_session.payment_intent.latest_charge.id, stripe_account: stripe_account)
+        if (id = checkout_session.payment_intent.try(:latest_charge)&.id)
+          Pay::Stripe::Charge.sync(id, stripe_account: stripe_account)
+        end
       when "subscription"
         Pay::Stripe::Subscription.sync(checkout_session.subscription, stripe_account: stripe_account)
       end

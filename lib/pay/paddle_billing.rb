@@ -1,10 +1,8 @@
 module Pay
   module PaddleBilling
-    autoload :Billable, "pay/paddle_billing/billable"
-    autoload :Charge, "pay/paddle_billing/charge"
-    autoload :Error, "pay/paddle_billing/error"
-    autoload :PaymentMethod, "pay/paddle_billing/payment_method"
-    autoload :Subscription, "pay/paddle_billing/subscription"
+    class Error < Pay::Error
+      delegate :message, to: :cause
+    end
 
     module Webhooks
       autoload :Subscription, "pay/paddle_billing/webhooks/subscription"
@@ -16,7 +14,8 @@ module Pay
     def self.enabled?
       return false unless Pay.enabled_processors.include?(:paddle_billing) && defined?(::Paddle)
 
-      Pay::Engine.version_matches?(required: "~> 2.1", current: ::Paddle::VERSION) || (raise "[Pay] paddle gem must be version ~> 2.1")
+      Pay::Engine.version_matches?(required: "~> 2.5",
+        current: ::Paddle::VERSION) || (raise "[Pay] paddle gem must be version ~> 2.5")
     end
 
     def self.setup
@@ -55,7 +54,7 @@ module Pay
       end
     end
 
-    def sync_transaction(transaction_id)
+    def self.sync_transaction(transaction_id)
       transaction = ::Paddle::Transaction.retrieve(id: transaction_id)
 
       if transaction.subscription_id.present?
