@@ -2,6 +2,133 @@
 
 ### Unreleased
 
+### 11.1.1
+
+* Add `retry` to `Pay::Stripe.sync_checkout_session`
+  Subscriptions aren't instantly attached to a Checkout Session, so this retry gives a chance for completion.
+  This helps build a more seamless experience when redirecting after a successful checkout so the next page knows the user has subscribed successfully.
+
+### 11.1.0
+
+* Add text parts to emails
+
+### 11.0.1
+
+* Fix release
+
+### 11.0.0
+
+* [Breaking] Renames `pay_customer` associations for `charges` and `subscriptions` to prevent conflicts
+  To upgrade, add the `pay_` prefix when referencing associations.
+
+  ```ruby
+  @user.pay_subscriptions
+  @user.pay_charges
+  ```
+
+* `on_trial?` and `trial_ended?` now consider if a `Pay::Subscription` was canceled. #1172
+* Stripe `cancel_now!` no longer sets `trial_ends_at` when there was no trial #1172
+* Stripe `cancel` and `cancel_now!` set values from the API response to match the values when syncing via webhooks. #1172
+* Stripe `Subscription#sync` now sets `trial_ends_at` to `nil` if the API response is also nil. #1172
+  Previously, it would leave the value unmodified in the database but this ensures the value is always in sync with the Stripe API.
+* Braintree subscriptions that `cancel_now!` now consider their trial ended immediately to match.
+
+### 10.1.5
+
+* Fix Stripe payment controller rescue
+
+### 10.1.4
+
+* Stripe `payment_action_required` webhooks now have to retrieve the InvoicePayments to send the email
+
+### 10.1.3
+
+* Handle Stripe errors if invalid payment intent ID is used for /payments
+* Allow nil with delegate to Stripe Charge object
+
+## 10.1.2
+
+* Add `charge.updated` webhook for Stripe Charges
+  When `charge.succeeded` fires, the associated `balance_transaction` isn't always present. Adding this webhooks allows us to be notified when the balance_transaction is set.
+* Makes `Pay::FakeProcessor::Customer.subscribe` a bit more compatible with other payment processors by ignoring all attributes that aren't database columns. #1155
+
+### 10.1.1
+
+* Replace `pay_customer.upcoming_invoice` with `pay_customer.preview_invoice`
+* Support options to `pay_customer.preview_invoice()` to
+
+### 10.1.0
+
+* Expand `payment_intent` and `refunds.data.balance_transaction` for `Stripe::Charge`
+* Expand `schedule` for `Stripe::Subscription`
+
+### 10.0.4
+
+* Update Stripe `invoice.payment_failed` and `invoice.payment_action_required` events
+
+### 10.0.3
+
+* Update `invoice.upcoming` Stripe webhook for new JSON format
+
+### 10.0.2
+
+* Fix receipts for non-Stripe processors
+
+### 10.0.1
+
+* Fix Stripe Invoice line item amount on receipts and invoices
+
+### 10.0.0
+
+* [Breaking] Stripe version upgrade including breaking changes. See https://docs.stripe.com/changelog#2025-03-31.basil
+  Requires `stripe` gem `~> 15`
+* [Breaking] Stripe `Pay::Customer#upcoming_invoice` has been renamed to `Pay::Customer#preview_invoice`
+* [Breaking] Moved Stripe charge attributes to `pay_charge.stripe_invoice` to simplify integrations and provide access to more data
+
+  This requires re-syncing Pay charges and subscriptions to update the cached data. Receipts and invoices expect to be able to access these details in the new format.
+  We recommend syncing records either in task after deployment or before the data is displayed in a request.
+
+* [Breaking] Removed `pay_subscription.prorate` virtual attribute. Pass proration options directly to actions instead.
+* [Breaking] Drops Rails 6.1 support
+
+### 9.0.1
+
+* Fix Stripe Charge `balance_transaction` syncing
+
+### 9.0.0
+
+* [Breaking] Remove default `type` for Stripe Merchant Account creation
+* Refactor `Pay.sync(params)` into a Hash for easily extending
+
+```ruby
+Pay::SYNC_HANDLERS[:foo] = ->(id) { Pay::Foo.sync_checkout(id) }
+# Pay.sync(params) calls lambda if params[:foo] is present
+```
+
+* Add `balance_transaction` to Stripe Charges for accessing conversion rates
+* Skip subscription renewing webhook for Stripe subscriptions that are set to `send_invoice`
+
+### 8.3.0
+
+* Ignore Stripe `payment_failed` and `payment_action_required` webhooks on `incomplete` subscriptions as these are already handled by the JavaScript in-browser. #1121
+* Add `FakeProcessor::Subscription#sync` #1120
+
+### 8.2.2
+
+* Compatibility with frozen string literals
+
+### 8.2.1
+
+* Add `meta` to LemonSqueezy webhook objects. LemonSqueezy does not store metadata and they're only temporarily accessible via the webhook meta.
+
+### 8.2.0
+
+* FakeProcessor subscriptions can be marked as nonresumable. This is helpful for giving users a limited subscription.
+
+```ruby
+pay_customer.subscribe(ends_at: 1.year.from_now, data: {resumable: false})
+```
+
 ### 8.1.3
 
 * Raise `Pay::Error` instead of `StandardError` consistently

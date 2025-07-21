@@ -22,13 +22,11 @@ module Pay
         }
 
         # Update or create the charge
-        if (pay_charge = pay_customer.charges.find_by(processor_id: processor_id))
-          pay_charge.with_lock do
-            pay_charge.update!(attributes)
-          end
+        if (pay_charge = find_by(customer: pay_customer, processor_id: processor_id))
+          pay_charge.with_lock { pay_charge.update!(attributes) }
           pay_charge
         else
-          pay_customer.charges.create!(attributes.merge(processor_id: processor_id))
+          create!(attributes.merge(customer: pay_customer, processor_id: processor_id))
         end
       end
 
@@ -70,6 +68,16 @@ module Pay
         end
       end
 
+      def save
+        ls_type, ls_id = processor_id.split(":", 2)
+        case ls_type
+        when "order"
+          self.class.sync_order(ls_id)
+        when "subscription_invoice"
+          self.class.sync_subscription_invoice(ls_id)
+        end
+      end
+
       def api_record
         ls_type, ls_id = processor_id.split(":", 2)
         case ls_type
@@ -84,3 +92,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_lemon_squeezy_charge, Pay::LemonSqueezy::Charge

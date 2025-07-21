@@ -1,6 +1,9 @@
 module Pay
   module PaddleBilling
     class Subscription < Pay::Subscription
+      store_accessor :data, :paddle_update_url
+      store_accessor :data, :paddle_cancel_url
+
       def self.sync_from_transaction(transaction_id)
         transaction = ::Paddle::Transaction.retrieve(id: transaction_id)
         sync(transaction.subscription_id) if transaction.subscription_id
@@ -54,13 +57,11 @@ module Pay
         end
 
         # Update or create the subscription
-        if (pay_subscription = pay_customer.subscriptions.find_by(processor_id: subscription_id))
-          pay_subscription.with_lock do
-            pay_subscription.update!(attributes)
-          end
+        if (pay_subscription = find_by(customer: pay_customer, processor_id: subscription_id))
+          pay_subscription.with_lock { pay_subscription.update!(attributes) }
           pay_subscription
         else
-          pay_customer.subscriptions.create!(attributes.merge(name: name, processor_id: subscription_id))
+          create!(attributes.merge(customer: pay_customer, name: name, processor_id: subscription_id))
         end
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
         try += 1
@@ -88,7 +89,7 @@ module Pay
 
         response = ::Paddle::Subscription.cancel(
           id: processor_id,
-          effective_from: options.fetch(:effective_from, (paused? ? "immediately" : "next_billing_period"))
+          effective_from: options.fetch(:effective_from, paused? ? "immediately" : "next_billing_period")
         )
         update(
           status: response.status,
@@ -181,3 +182,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_paddle_billing_subscription, Pay::PaddleBilling::Subscription

@@ -147,7 +147,7 @@ module Pay
           end
         end
 
-        charge = charges.find_or_initialize_by(processor_id: transaction.id)
+        charge = Pay::Braintree::Charge.find_or_initialize_by(customer: self, processor_id: transaction.id)
         charge.update!(attrs)
         charge
       end
@@ -262,3 +262,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_braintree_customer, Pay::Braintree::Customer

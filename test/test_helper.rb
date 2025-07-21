@@ -1,9 +1,6 @@
 # Configure Rails Environment
 ENV["RAILS_ENV"] = "test"
 
-# Disable warnings locally
-$VERBOSE = ENV["CI"]
-
 # Configure all the payment providers for testing
 ENV["STRIPE_PRIVATE_KEY"] ||= "sk_test_fake"
 ENV["STRIPE_SIGNING_SECRET"] ||= "whsec_x"
@@ -84,18 +81,5 @@ class ActiveSupport::TestCase
     travel_to(VCR.current_cassette&.originally_recorded_at || Time.current) do
       yield
     end
-  end
-
-  def assert_indexed_selects
-    subscriber = ActiveSupport::Notifications.subscribe "sql.active_record" do |name, started, finished, unique_id, data|
-      if data[:sql].starts_with? "SELECT"
-        result = data[:connection].explain(data[:sql], data[:binds]).downcase
-        assert result.include?("index"), "Query `#{data[:name]}` did not use an index!"
-      end
-    end
-
-    yield
-  ensure
-    ActiveSupport::Notifications.unsubscribe(subscriber)
   end
 end

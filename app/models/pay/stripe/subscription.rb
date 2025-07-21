@@ -23,6 +23,7 @@ module Pay
         end
 
         attributes = {
+          object: object.to_hash,
           application_fee_percent: object.application_fee_percent,
           created_at: Time.at(object.created),
           processor_plan: object.items.first.price.id,
@@ -30,12 +31,11 @@ module Pay
           status: object.status,
           stripe_account: pay_customer.stripe_account,
           metadata: object.metadata,
-          subscription_items: [],
           metered: false,
           pause_behavior: object.pause_collection&.behavior,
           pause_resumes_at: (object.pause_collection&.resumes_at ? Time.at(object.pause_collection&.resumes_at) : nil),
-          current_period_start: (object.current_period_start ? Time.at(object.current_period_start) : nil),
-          current_period_end: (object.current_period_end ? Time.at(object.current_period_end) : nil)
+          current_period_start: (object.items.first.current_period_start ? Time.at(object.items.first.current_period_start) : nil),
+          current_period_end: (object.items.first.current_period_end ? Time.at(object.items.first.current_period_end) : nil)
         }
 
         # Subscriptions that have ended should have their trial ended at the
@@ -47,15 +47,13 @@ module Pay
         if object.trial_end
           trial_ended_at = [object.ended_at, object.trial_end].compact.min
           attributes[:trial_ends_at] = Time.at(trial_ended_at)
+        else
+          attributes[:trial_ends_at] = nil
         end
 
-        # Record subscription items to db
         object.items.auto_paging_each do |subscription_item|
-          if !attributes[:metered] && (subscription_item.to_hash.dig(:price, :recurring, :usage_type) == "metered")
-            attributes[:metered] = true
-          end
-
-          attributes[:subscription_items] << subscription_item.to_hash.slice(:id, :price, :metadata, :quantity)
+          next if attributes[:metered]
+          attributes[:metered] = true if subscription_item.price.try(:recurring).try(:usage_type) == "metered"
         end
 
         attributes[:ends_at] = if object.ended_at
@@ -66,7 +64,7 @@ module Pay
           Time.at(object.cancel_at)
         elsif object.cancel_at_period_end
           # Subscriptions cancelling in the future
-          Time.at(object.current_period_end)
+          Time.at(object.items.first.current_period_end)
         end
 
         # Sync payment method if directly attached to subscription
@@ -81,13 +79,13 @@ module Pay
         end
 
         # Update or create the subscription
-        pay_subscription = pay_customer.subscriptions.find_by(processor_id: object.id)
+        pay_subscription = find_by(customer: pay_customer, processor_id: object.id)
         if pay_subscription
           # If pause behavior is changing to `void`, record the pause start date
           # Any other pause status (or no pause at all) should have nil for start
           if pay_subscription.pause_behavior != attributes[:pause_behavior]
             attributes[:pause_starts_at] = if attributes[:pause_behavior] == "void"
-              Time.at(object.current_period_end)
+              Time.at(object.items.first.current_period_end)
             end
           end
 
@@ -95,15 +93,18 @@ module Pay
         else
           # Allow setting the subscription name in metadata, otherwise use the default
           name ||= object.metadata["pay_name"] || Pay.default_product_name
-          pay_subscription = pay_customer.subscriptions.create!(attributes.merge(name: name, processor_id: object.id))
+          pay_subscription = create!(attributes.merge(customer: pay_customer, name: name, processor_id: object.id))
         end
 
         # Cache the Stripe subscription on the Pay::Subscription that we return
         pay_subscription.api_record = object
 
         # Sync the latest charge if we already have it loaded (like during subscrbe), otherwise, let webhooks take care of creating it
-        if (charge = object.try(:latest_invoice).try(:charge)) && charge.try(:status) == "succeeded"
-          Pay::Stripe::Charge.sync(charge.id, stripe_account: pay_subscription.stripe_account)
+        if (invoice = object.try(:latest_invoice))
+          Array(invoice.try(:payments)).each do |invoice_payment|
+            next unless invoice_payment.status == "paid"
+            Pay::Stripe::Charge.sync_payment_intent(invoice_payment.payment.payment_intent, stripe_account: pay_subscription.stripe_account)
+          end
         end
 
         pay_subscription
@@ -122,13 +123,18 @@ module Pay
         {
           expand: [
             "default_payment_method",
-            "pending_setup_intent",
-            "latest_invoice.payment_intent",
-            "latest_invoice.charge",
+            "discounts",
+            "latest_invoice.confirmation_secret",
+            "latest_invoice.payments",
             "latest_invoice.total_discount_amounts.discount",
-            "latest_invoice.total_tax_amounts.tax_rate"
+            "pending_setup_intent",
+            "schedule"
           ]
         }
+      end
+
+      def stripe_object
+        ::Stripe::Subscription.construct_from(object)
       end
 
       def api_record(**options)
@@ -137,7 +143,7 @@ module Pay
 
       # Returns a SetupIntent or PaymentIntent client secret for the subscription
       def client_secret
-        api_record&.pending_setup_intent&.client_secret || api_record&.latest_invoice&.payment_intent&.client_secret
+        api_record&.pending_setup_intent&.client_secret || api_record&.latest_invoice&.confirmation_secret&.client_secret
       end
 
       # Sets the default_payment_method on a subscription
@@ -160,7 +166,7 @@ module Pay
           cancel_now!
         else
           @api_record = ::Stripe::Subscription.update(processor_id, {cancel_at_period_end: true}.merge(expand_options), stripe_options)
-          update(ends_at: (on_trial? ? trial_ends_at : Time.at(@api_record.current_period_end)))
+          update(ends_at: Time.at(@api_record.cancel_at))
         end
       rescue ::Stripe::StripeError => e
         raise Pay::Stripe::Error, e
@@ -174,7 +180,11 @@ module Pay
         return if canceled? && ends_at.past?
 
         @api_record = ::Stripe::Subscription.cancel(processor_id, options.merge(expand_options), stripe_options)
-        update(ends_at: Time.current, status: :canceled)
+        update(
+          trial_ends_at: (@api_record.trial_end ? Time.at(@api_record.trial_end) : nil),
+          ends_at: Time.at(@api_record.ended_at),
+          status: @api_record.status
+        )
       rescue ::Stripe::StripeError => e
         raise Pay::Stripe::Error, e
       end
@@ -184,7 +194,7 @@ module Pay
       # For a subscription with a single item, we can update the subscription directly if no SubscriptionItem ID is available
       # Otherwise a SubscriptionItem ID is required so Stripe knows which entry to update
       def change_quantity(quantity, **options)
-        subscription_item_id = options.delete(:subscription_item_id) || subscription_items&.first&.dig("id")
+        subscription_item_id = options.delete(:subscription_item_id) || subscription_items&.first&.id
         if subscription_item_id
           ::Stripe::SubscriptionItem.update(subscription_item_id, options.merge(quantity: quantity), stripe_options)
           @api_record = nil
@@ -234,7 +244,7 @@ module Pay
         update(
           pause_behavior: behavior,
           pause_resumes_at: (@api_record.pause_collection&.resumes_at ? Time.at(@api_record.pause_collection&.resumes_at) : nil),
-          pause_starts_at: ((behavior == "void") ? Time.at(@api_record.current_period_end) : nil)
+          pause_starts_at: ((behavior == "void") ? Time.at(@api_record.items.first.current_period_end) : nil)
         )
       end
 
@@ -277,6 +287,7 @@ module Pay
       def swap(plan, **options)
         raise ArgumentError, "plan must be a string" unless plan.is_a?(String)
 
+        prorate = options.fetch(:prorate) { true }
         proration_behavior = options.delete(:proration_behavior) || (prorate ? "always_invoice" : "none")
 
         @api_record = ::Stripe::Subscription.update(
@@ -292,8 +303,8 @@ module Pay
         )
 
         # Validate that swap was successful and handle SCA if needed
-        if (payment_intent = @api_record.latest_invoice.payment_intent)
-          Pay::Payment.new(payment_intent).validate
+        if (payment_intent_id = @api_record.latest_invoice.payments.first&.payment&.payment_intent)
+          Pay::Payment.from_id(payment_intent_id).validate
         end
 
         sync!(object: @api_record)
@@ -301,33 +312,19 @@ module Pay
         raise Pay::Stripe::Error, e
       end
 
-      # Creates a metered billing usage record
-      #
-      # Uses the first subscription_item ID unless `subscription_item_id: "si_1234"` is passed
-      #
-      # create_usage_record(quantity: 4, action: :increment)
-      # create_usage_record(subscription_item_id: "si_1234", quantity: 100, action: :set)
-      def create_usage_record(**options)
-        subscription_item_id = options.delete(:subscription_item_id) || metered_subscription_item&.dig("id")
-        ::Stripe::SubscriptionItem.create_usage_record(subscription_item_id, options, stripe_options)
-      end
-
-      # Returns usage record summaries for a subscription item
-      def usage_record_summaries(**options)
-        subscription_item_id = options.delete(:subscription_item_id) || metered_subscription_item&.dig("id")
-        ::Stripe::SubscriptionItem.list_usage_record_summaries(subscription_item_id, options, stripe_options)
+      def subscription_items
+        stripe_object.items
       end
 
       # Returns the first metered subscription item
       def metered_subscription_item
-        subscription_items.find do |subscription_item|
-          subscription_item.dig("price", "recurring", "usage_type") == "metered"
+        subscription_items.auto_paging_each do |subscription_item|
+          return subscription_item if subscription_item.price.try(:recurring).try(:usage_type) == "metered"
         end
       end
 
-      # Returns an upcoming invoice for a subscription
-      def upcoming_invoice(**options)
-        ::Stripe::Invoice.upcoming(options.merge(subscription: processor_id), stripe_options)
+      def preview_invoice(**options)
+        ::Stripe::Invoice.create_preview(options.merge(subscription: processor_id), stripe_options)
       end
 
       # Retries the latest invoice for a Past Due subscription and attempts to pay it
@@ -369,3 +366,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_stripe_subscription, Pay::Stripe::Subscription

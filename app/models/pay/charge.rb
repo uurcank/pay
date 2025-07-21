@@ -23,19 +23,8 @@ module Pay
     store_accessor :data, :username # Venmo
     store_accessor :data, :bank
 
-    store_accessor :data, :amount_captured
-    store_accessor :data, :invoice_id
-    store_accessor :data, :payment_intent_id
-    store_accessor :data, :period_start
-    store_accessor :data, :period_end
-    store_accessor :data, :line_items
-    store_accessor :data, :subtotal # subtotal amount in cents
-    store_accessor :data, :tax # total tax amount in cents
-    store_accessor :data, :discounts # array of discount IDs applied to the Stripe Invoice
-    store_accessor :data, :total_discount_amounts # array of discount details
-    store_accessor :data, :total_tax_amounts # array of tax details for each jurisdiction
-    store_accessor :data, :credit_notes # array of credit notes for the Stripe Invoice
-    store_accessor :data, :refunds # array of refunds
+    store_accessor :data, :subtotal
+    store_accessor :data, :tax
 
     # Helpers for payment processors
     %w[braintree stripe paddle_billing paddle_classic lemon_squeezy shopify fake_processor].each do |processor_name|
@@ -50,8 +39,9 @@ module Pay
       joins(:customer).find_by(processor_id: processor_id, pay_customers: {processor: processor})
     end
 
-    def captured?
-      amount_captured > 0
+    def sync!(**options)
+      self.class.sync(processor_id, **options)
+      reload
     end
 
     def refunded?
@@ -112,9 +102,7 @@ module Pay
         payment_method_type&.titleize
       end
     end
-
-    def line_items
-      Array.wrap(super)
-    end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_charge, Pay::Charge

@@ -58,8 +58,7 @@ module Pay
       def subscribe(name: Pay.default_product_name, plan: Pay.default_plan_name, **options)
         quantity = options.delete(:quantity)
         opts = {
-          expand: ["pending_setup_intent", "latest_invoice.payment_intent", "latest_invoice.charge"],
-          items: [plan: plan, quantity: quantity]
+          items: [price: plan, quantity: quantity]
         }.merge(options)
 
         # Load the Stripe customer to verify it exists and update payment method if needed
@@ -73,7 +72,8 @@ module Pay
 
         # No trial, payment method requires SCA
         if options[:payment_behavior].to_s != "default_incomplete" && subscription.incomplete?
-          Pay::Payment.new(stripe_sub.latest_invoice.payment_intent).validate
+          payment_intent_id = stripe_sub.latest_invoice.payments.first.payment.payment_intent
+          Pay::Payment.from_id(payment_intent_id).validate
         end
 
         subscription
@@ -122,7 +122,7 @@ module Pay
           amount: amount,
           currency: "usd",
           customer: processor_id || api_record.id,
-          expand: ["latest_charge.refunds"],
+          expand: Pay::Stripe::Charge::EXPAND.map { |option| "latest_charge.#{option}" },
           return_url: root_url
         }.merge(options)
 
@@ -142,8 +142,8 @@ module Pay
         ::Stripe::Invoice.create(options.merge(customer: processor_id || api_record.id), stripe_options).pay
       end
 
-      def upcoming_invoice
-        ::Stripe::Invoice.upcoming({customer: processor_id || api_record.id}, stripe_options)
+      def preview_invoice(**options)
+        ::Stripe::Invoice.create_preview(options.merge(customer: processor_id || api_record.id), stripe_options)
       end
 
       # Syncs a customer's subscriptions from Stripe to the database.
@@ -270,3 +270,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_stripe_customer, Pay::Stripe::Customer

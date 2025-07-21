@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-gem "appraisal", git: "https://github.com/thoughtbot/appraisal.git"
+gem "appraisal"
 gem "mocha"
 gem "standard"
 gem "vcr"
@@ -10,21 +10,18 @@ gem "webmock"
 gem "braintree", ">= 2.92.0"
 gem "lemonsqueezy", "~> 1.0"
 gem "paddle", "~> 2.6"
-gem "stripe", "~> 13.0"
+gem "stripe", "~> 15.0"
 gem "prawn"
 gem "receipts"
 gem "mysql2"
 gem "pg"
-gem "sqlite3", "~> 2.0"
+gem "sqlite3"
 gem "puma"
 gem "web-console", group: :development
 gem "importmap-rails"
 gem "sprockets-rails"
 gem "stimulus-rails"
 gem "turbo-rails"
-gem "net-imap", require: false
-gem "net-pop", require: false
-gem "net-smtp", require: false
 gem "rails", "~> 7.2.0.rc1"
 
 gemspec path: "../"

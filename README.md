@@ -2,13 +2,14 @@
 
 # 💳 Pay - Payments engine for Ruby on Rails
 
-[![Build Status](https://github.com/pay-rails/pay/workflows/Tests/badge.svg)](https://github.com/pay-rails/pay/actions) [![Gem Version](https://badge.fury.io/rb/pay.svg)](https://badge.fury.io/rb/pay)
-
-<img src="docs/images/stripe_partner_badge.svg" height="26px">
+[![Build Status](https://github.com/pay-rails/pay/workflows/Tests/badge.svg)](https://github.com/pay-rails/pay/actions) [![Gem Version](https://badge.fury.io/rb/pay.svg)](https://badge.fury.io/rb/pay) <img src="docs/images/stripe_partner_badge.svg" height="26px">
 
 Pay is a payments engine for Ruby on Rails 6.0 and higher.
 
-⚠️  **Upgrading?** Check the [UPGRADE](UPGRADE.md) guide for required changes and/or migration when upgrading from a previous version of Pay.
+> [!TIP]
+> Check out [Jumpstart](https://jumpstartrails.com) for Rails Starter Kit with Pay already integrated!
+
+**Upgrading?** Check the [UPGRADE](UPGRADE.md) guide for required changes and/or migration when upgrading from a previous version of Pay.
 
 ## 🧑‍💻 Tutorial
 
@@ -48,6 +49,7 @@ Want to add a new payment provider? Contributions are welcome.
   * [Paddle](docs/paddle_billing/1_overview.md)
   * [Lemon Squeezy](docs/lemon_squeezy/1_overview.md)
   * [Fake Processor](docs/fake_processor/1_overview.md)
+  * [Asaas (Community)](https://github.com/PedroAugustoRamalhoDuarte/pay-asaas)
 * **Marketplaces**
   * [Stripe Connect](docs/marketplaces/stripe_connect.md)
 * **Contributing**

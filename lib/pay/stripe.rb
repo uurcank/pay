@@ -1,13 +1,13 @@
 module Pay
   module Stripe
     class Error < Pay::Error
-      delegate :message, to: :cause
     end
 
     module Webhooks
       autoload :AccountUpdated, "pay/stripe/webhooks/account_updated"
       autoload :ChargeRefunded, "pay/stripe/webhooks/charge_refunded"
       autoload :ChargeSucceeded, "pay/stripe/webhooks/charge_succeeded"
+      autoload :ChargeUpdated, "pay/stripe/webhooks/charge_updated"
       autoload :CheckoutSessionCompleted, "pay/stripe/webhooks/checkout_session_completed"
       autoload :CheckoutSessionAsyncPaymentSucceeded, "pay/stripe/webhooks/checkout_session_async_payment_succeeded"
       autoload :CustomerDeleted, "pay/stripe/webhooks/customer_deleted"
@@ -27,7 +27,7 @@ module Pay
 
     extend Env
 
-    REQUIRED_VERSION = "~> 13"
+    REQUIRED_VERSION = "~> 15"
 
     # A list of database model names that include Pay
     # Used for safely looking up models with client_reference_id
@@ -65,7 +65,7 @@ module Pay
 
     def self.webhook_receive_test_events
       value = find_value_by_name(:stripe, :webhook_receive_test_events)
-      value.blank? ? true : ActiveModel::Type::Boolean.new.cast(value)
+      value.blank? || ActiveModel::Type::Boolean.new.cast(value)
     end
 
     def self.configure_webhooks
@@ -73,8 +73,9 @@ module Pay
         # Listen to the charge event to make sure we get non-subscription
         # purchases as well. Invoice is only for subscriptions and manual creation
         # so it does not include individual charges.
-        events.subscribe "stripe.charge.succeeded", Pay::Stripe::Webhooks::ChargeSucceeded.new
         events.subscribe "stripe.charge.refunded", Pay::Stripe::Webhooks::ChargeRefunded.new
+        events.subscribe "stripe.charge.succeeded", Pay::Stripe::Webhooks::ChargeSucceeded.new
+        events.subscribe "stripe.charge.updated", Pay::Stripe::Webhooks::ChargeUpdated.new
 
         events.subscribe "stripe.payment_intent.succeeded", Pay::Stripe::Webhooks::PaymentIntentSucceeded.new
 
@@ -141,15 +142,24 @@ module Pay
       nil
     end
 
-    def self.sync_checkout_session(session_id, stripe_account: nil)
+    # Subscriptions aren't always immediately associated, so we want to retry by default
+    def self.sync_checkout_session(session_id, stripe_account: nil, try: 0, retries: 5)
       checkout_session = ::Stripe::Checkout::Session.retrieve({id: session_id, expand: ["payment_intent.latest_charge"]}, {stripe_account: stripe_account}.compact)
       case checkout_session.mode
       when "payment"
         if (id = checkout_session.payment_intent.try(:latest_charge)&.id)
-          Pay::Stripe::Charge.sync(id, stripe_account: stripe_account)
+          Pay::Stripe::Charge.sync(id, stripe_account: stripe_account, retries: 5)
         end
       when "subscription"
         Pay::Stripe::Subscription.sync(checkout_session.subscription, stripe_account: stripe_account)
+      end
+    rescue ::Stripe::InvalidRequestError
+      if try > retries
+        raise
+      else
+        try += 1
+        sleep 0.15**try
+        retry
       end
     end
   end

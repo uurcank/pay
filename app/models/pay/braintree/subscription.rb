@@ -31,15 +31,12 @@ module Pay
           attributes[:ends_at] = object.paid_through_date.end_of_day
         end
 
-        pay_subscription = pay_customer.subscriptions.find_by(processor_id: object.id)
-        if pay_subscription
+        if (pay_subscription = find_by(customer: pay_customer, processor_id: object.id))
           pay_subscription.with_lock { pay_subscription.update!(attributes) }
         else
           name ||= Pay.default_product_name
-          pay_subscription = pay_customer.subscriptions.create!(attributes.merge(name: name, processor_id: object.id))
+          create!(attributes.merge(customer: pay_customer, name: name, processor_id: object.id))
         end
-
-        pay_subscription
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
         try += 1
         if try <= retries
@@ -134,8 +131,9 @@ module Pay
         end
 
         braintree_plan = find_braintree_plan(plan)
+        prorate = options.fetch(:prorate) { true }
 
-        if would_change_billing_frequency?(braintree_plan) && prorate?
+        if would_change_billing_frequency?(braintree_plan) && prorate
           swap_across_frequencies(braintree_plan)
           return
         end
@@ -146,7 +144,7 @@ module Pay
           never_expires: true,
           number_of_billing_cycles: nil,
           options: {
-            prorate_charges: prorate?
+            prorate_charges: prorate
           }
         })
         raise Error, "Braintree failed to swap plans: #{result.message}" unless result.success?
@@ -245,3 +243,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_braintree_subscription, Pay::Braintree::Subscription

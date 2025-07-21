@@ -6,6 +6,8 @@ class UserMailerTest < ActionMailer::TestCase
     @pay_customer = @charge.customer
     @user = @pay_customer.owner
     @user.update(extra_billing_info: "extra billing info")
+
+    @charge.update stripe_invoice: JSON.parse(file_fixture("stripe/invoice.json").read)
   end
 
   test "from address with Pay.support_email" do
@@ -62,8 +64,9 @@ class UserMailerTest < ActionMailer::TestCase
     email = Pay::UserMailer.with(pay_customer: @pay_customer, pay_subscription: Pay::Subscription.new, date: time).subscription_renewing
 
     assert_equal [@user.email], email.to
-    assert_equal I18n.t("pay.user_mailer.subscription_renewing.subject", application: Pay.application_name), email.subject
-    assert_includes email.body.decoded, I18n.l(time.to_date, format: :long)
+    assert_equal I18n.t("pay.user_mailer.subscription_renewing.subject", application: Pay.application_name),
+      email.subject
+    assert_includes email.html_part.decoded, I18n.l(time.to_date, format: :long)
   end
 
   test "payment_action_required" do
@@ -71,7 +74,7 @@ class UserMailerTest < ActionMailer::TestCase
 
     assert_equal [@user.email], email.to
     assert_equal I18n.t("pay.user_mailer.payment_action_required.subject", application: Pay.application_name), email.subject
-    assert_includes email.body.decoded, Pay::Engine.instance.routes.url_helpers.payment_path("x")
+    assert_includes email.html_part.decoded, Pay::Engine.instance.routes.url_helpers.payment_path("x")
   end
 
   test "receipt with no extra billing info column" do
@@ -97,7 +100,7 @@ class UserMailerTest < ActionMailer::TestCase
 
     assert_equal [@user.email], email.to
     assert_equal I18n.t("pay.user_mailer.subscription_trial_will_end.subject", application: Pay.application_name), email.subject
-    assert_includes email.body.decoded, "trial is ending soon"
+    assert_includes email.html_part.decoded, "trial is ending soon"
   end
 
   test "subscription_trial_ended" do
@@ -105,7 +108,7 @@ class UserMailerTest < ActionMailer::TestCase
 
     assert_equal [@user.email], email.to
     assert_equal I18n.t("pay.user_mailer.subscription_trial_ended.subject", application: Pay.application_name), email.subject
-    assert_includes email.body.decoded, "trial has ended"
+    assert_includes email.html_part.decoded, "trial has ended"
   end
 
   test "subscription payment failed" do
@@ -113,6 +116,6 @@ class UserMailerTest < ActionMailer::TestCase
 
     assert_equal [@user.email], email.to
     assert_equal I18n.t("pay.user_mailer.payment_failed.subject", application: Pay.application_name), email.subject
-    assert_includes email.body.decoded, "payment was declined"
+    assert_includes email.html_part.decoded, "payment was declined"
   end
 end

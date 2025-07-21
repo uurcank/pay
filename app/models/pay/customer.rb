@@ -21,7 +21,7 @@ module Pay
     store_accessor :data, :invoice_credit_balance
     store_accessor :data, :currency
 
-    delegate :email, to: :owner
+    delegate :email, to: :owner, allow_nil: true
 
     %w[stripe braintree paddle_billing paddle_classic lemon_squeezy shopify fake_processor].each do |processor_name|
       scope processor_name, -> { where(processor: processor_name) }
@@ -89,3 +89,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_customer, Pay::Customer

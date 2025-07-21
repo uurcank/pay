@@ -27,12 +27,6 @@ module Pay
     # Callbacks
     before_destroy :cancel_if_active
 
-    store_accessor :data, :paddle_update_url
-    store_accessor :data, :paddle_cancel_url
-    store_accessor :data, :subscription_items
-
-    attribute :prorate, :boolean, default: true
-
     # Validations
     validates :name, presence: true
     validates :processor_id, presence: true, uniqueness: {scope: :customer_id, case_sensitive: true}
@@ -58,10 +52,6 @@ module Pay
       reload
     end
 
-    def no_prorate
-      self.prorate = false
-    end
-
     def skip_trial
       self.trial_ends_at = nil
     end
@@ -76,10 +66,12 @@ module Pay
 
     # Does not include the last second of the trial
     def on_trial?
+      return false if ended?
       trial_ends_at? && trial_ends_at > Time.current
     end
 
     def trial_ended?
+      return true if ended?
       trial_ends_at? && trial_ends_at <= Time.current
     end
 
@@ -137,3 +129,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_subscription, Pay::Subscription

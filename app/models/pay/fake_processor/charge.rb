@@ -1,6 +1,10 @@
 module Pay
   module FakeProcessor
     class Charge < Pay::Charge
+      def self.sync(processor_id)
+        true
+      end
+
       def api_record
         self
       end
@@ -11,3 +15,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_fake_processor_charge, Pay::FakeProcessor::Charge

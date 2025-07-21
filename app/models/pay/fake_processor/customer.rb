@@ -49,9 +49,14 @@ module Pay
           attributes[:trial_ends_at] = trial_period_days.to_i.days.from_now
         end
 
-        attributes.delete(:promotion_code)
+        # Ignore any keys that aren't attribute names
+        attributes.deep_stringify_keys!.slice!(*subscriptions.attribute_names)
 
         subscriptions.create!(attributes)
+      end
+
+      def sync_subscriptions(**options)
+        []
       end
 
       def add_payment_method(payment_method_id, default: false)
@@ -80,3 +85,5 @@ module Pay
     end
   end
 end
+
+ActiveSupport.run_load_hooks :pay_fake_processor_customer, Pay::FakeProcessor::Customer

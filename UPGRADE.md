@@ -2,6 +2,35 @@
 
 Follow this guide to upgrade older Pay versions. These may require database migrations and code changes.
 
+## Pay 11
+
+Associations on Pay models have been renamed to use the `pay_` prefix.
+
+```ruby
+# old
+@user.charges
+# new
+@user.pay_charges
+
+# old
+@user.subscriptions
+# new
+@user.pay_subscriptions
+```
+
+## Pay 10.1
+
+Pay now uses the Stripe `charge.updated` webhook to save Charge balance transactions. Make sure you're sending this webhook to keep these records up-to-date.
+
+## Pay 9.0 to Pay 10.0
+
+Pay has introduced an `object` column on `pay_customers` `pay_charges` and `pay_subscriptions` to save a full copy of the Stripe objects to make future changes easier.
+
+```bash
+rails pay:install:migrations
+rails db:migrate
+```
+
 ## Pay 7.0 to Pay 8.0
 
 Pay has moved to using Single Table Inheritance to handle each payment processor's functionality. To do this, we've provided a migration to update the existing records.
@@ -110,7 +139,7 @@ This is a major change to add Stripe tax support, Stripe metered billing, new co
 
 ### Method Additions and Changes
 
-In an effort to keep a consistant naming convention, the email parameters of `subscription` and `charge` have been updated to have `pay_` prepended to them (`pay_subscription` and `pay_charge` respectively). If you are directly using any of the built in emails or created custom Pay views, you will want to be sure to update your parameter names to the updated names.
+In an effort to keep a consistent naming convention, the email parameters of `subscription` and `charge` have been updated to have `pay_` prepended to them (`pay_subscription` and `pay_charge` respectively). If you are directly using any of the built in emails or created custom Pay views, you will want to be sure to update your parameter names to the updated names.
 
 You'll need to replace all references to:
 ```ruby
@@ -120,7 +149,7 @@ params[:subscription] with params[:pay_subscription]
 
 The `send_emails` configuration variable has been removed from Pay and replaced by the new configuration system which is discussed below. `Pay.send_emails` is primarily used internally, but if you have been using it in your application code you will need to update those areas to use the new method calls from the email configuration settings. For example, to check if the receipt email should be sent you can now call `Pay.send_email?(:receipt)`. If your email configuration option uses a lambda, you can pass any additional arguments to `send_email?` like so `Pay.send_email?(:receipt, pay_charge)` for use in the lambda.
 
-The `update_email!` method has been replaced with `update_customer!`. When dealing with a `Stripe::Billable` or `Braintree::Billable` object, a hash of additional attributes can be passed in that will be merged into the default atrributes.
+The `update_email!` method has been replaced with `update_customer!`. When dealing with a `Stripe::Billable` or `Braintree::Billable` object, a hash of additional attributes can be passed in that will be merged into the default attributes.
 
 The `Stripe::Subscription#cancel_now!` method now accepts a hash of options such as `cancel_now!(prorate: true, invoice_now: true)` which will be handled automatically by Stripe.
 

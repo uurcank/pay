@@ -3,7 +3,7 @@
 Pay listens to Stripe's webhooks to keep the local payments data in sync. 
 
 For development, we use the Stripe CLI to forward webhooks to our local server. 
-In production, webhooks are directly sent directly to our app's domain.
+In production, webhooks are sent directly to our app's domain.
 
 ## Development webhooks with the Stripe CLI
 
@@ -54,7 +54,7 @@ checkout.session.completed
 checkout.session.async_payment_succeeded
 ```
 
-[Click here](https://dashboard.stripe.com/webhooks/create?events=charge.succeeded%2Ccharge.refunded%2Cpayment_intent.succeeded%2Cinvoice.upcoming%2Cinvoice.payment_action_required%2Ccustomer.subscription.created%2Ccustomer.subscription.updated%2Ccustomer.subscription.deleted%2Ccustomer.subscription.trial_will_end%2Ccustomer.updated%2Ccustomer.deleted%2Cpayment_method.attached%2Cpayment_method.updated%2Cpayment_method.automatically_updated%2Cpayment_method.detached%2Caccount.updated%2Ccheckout.session.completed%2Ccheckout.session.async_payment_succeeded) to create a new Stripe webhook with all the events pre-filled.
+[Click here](https://dashboard.stripe.com/webhooks/create?events=charge.succeeded%2Ccharge.refunded%2Ccharge.updated%2Cpayment_intent.succeeded%2Cinvoice.upcoming%2Cinvoice.payment_action_required%2Ccustomer.subscription.created%2Ccustomer.subscription.updated%2Ccustomer.subscription.deleted%2Ccustomer.subscription.trial_will_end%2Ccustomer.updated%2Ccustomer.deleted%2Cpayment_method.attached%2Cpayment_method.updated%2Cpayment_method.automatically_updated%2Cpayment_method.detached%2Caccount.updated%2Ccheckout.session.completed%2Ccheckout.session.async_payment_succeeded) to create a new Stripe webhook with all the events pre-filled.
 
 ## Next
 

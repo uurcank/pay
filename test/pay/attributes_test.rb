@@ -6,9 +6,7 @@ class Pay::AttributesTest < ActiveSupport::TestCase
     refute user.payment_processor
 
     assert_difference "Pay::Customer.count" do
-      assert_indexed_selects do
-        user.set_payment_processor :stripe
-      end
+      user.set_payment_processor :stripe
     end
 
     assert user.payment_processor
@@ -39,7 +37,8 @@ class Pay::AttributesTest < ActiveSupport::TestCase
 
   test "deleting user doesn't remove pay customers" do
     user = users(:stripe)
-    ::Stripe::Subscription.stub(:cancel, user.payment_processor.subscription) do
+    object = stripe_event("subscription.deleted").data.object
+    ::Stripe::Subscription.stub(:cancel, object) do
       assert_no_difference "Pay::Customer.count" do
         user.destroy
       end
@@ -48,7 +47,8 @@ class Pay::AttributesTest < ActiveSupport::TestCase
 
   test "deleting user cancels subscriptions" do
     user = users(:stripe)
-    ::Stripe::Subscription.stub(:cancel, user.payment_processor.subscription) do
+    object = stripe_event("subscription.deleted").data.object
+    ::Stripe::Subscription.stub(:cancel, object) do
       assert user.payment_processor.subscription.active?
       user.destroy
       refute user.payment_processor.subscription.active?
@@ -57,7 +57,8 @@ class Pay::AttributesTest < ActiveSupport::TestCase
 
   test "deleting user ignores canceled subscriptions" do
     user = users(:stripe)
-    ::Stripe::Subscription.stub(:cancel, user.payment_processor.subscription) do
+    object = stripe_event("subscription.deleted").data.object
+    ::Stripe::Subscription.stub(:cancel, object) do
       user.payment_processor.subscription.cancel_now!
       refute user.payment_processor.subscription.active?
       user.destroy
@@ -69,9 +70,7 @@ class Pay::AttributesTest < ActiveSupport::TestCase
     refute account.merchant_processor
 
     assert_difference "Pay::Merchant.count" do
-      assert_indexed_selects do
-        account.set_merchant_processor :stripe
-      end
+      account.set_merchant_processor :stripe
     end
 
     assert account.merchant_processor
