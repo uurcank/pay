@@ -43,6 +43,8 @@ module Pay
       scope processor_name, -> { joins(:customer).where(pay_customers: {processor: processor_name}) }
     end
 
+    delegate :owner, to: :customer
+
     def self.find_by_processor_and_id(processor, processor_id)
       joins(:customer).find_by(processor_id: processor_id, pay_customers: {processor: processor})
     end

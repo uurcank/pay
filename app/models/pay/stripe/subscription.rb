@@ -103,7 +103,13 @@ module Pay
         if (invoice = object.try(:latest_invoice))
           Array(invoice.try(:payments)).each do |invoice_payment|
             next unless invoice_payment.status == "paid"
-            Pay::Stripe::Charge.sync_payment_intent(invoice_payment.payment.payment_intent, stripe_account: pay_subscription.stripe_account)
+
+            case invoice_payment.payment.type
+            when "payment_intent"
+              Pay::Stripe::Charge.sync_payment_intent(invoice_payment.payment.payment_intent, stripe_account: pay_subscription.stripe_account)
+            when "charge"
+              Pay::Stripe::Charge.sync(invoice_payment.payment.charge, stripe_account: pay_subscription.stripe_account)
+            end
           end
         end
 
@@ -134,6 +140,7 @@ module Pay
       end
 
       def stripe_object
+        sync! if object.nil?
         ::Stripe::Subscription.construct_from(object)
       end
 
@@ -273,7 +280,6 @@ module Pay
           unpause
         else
           @api_record = ::Stripe::Subscription.update(processor_id, {
-            plan: processor_plan,
             trial_end: (on_trial? ? trial_ends_at.to_i : "now"),
             cancel_at_period_end: false
           }.merge(expand_options),
@@ -294,10 +300,9 @@ module Pay
           processor_id,
           {
             cancel_at_period_end: false,
-            plan: plan,
+            items: [{id: subscription_items.first.id, plan: plan, quantity: quantity}],
             proration_behavior: proration_behavior,
-            trial_end: (on_trial? ? trial_ends_at.to_i : "now"),
-            quantity: quantity
+            trial_end: (on_trial? ? trial_ends_at.to_i : "now")
           }.merge(expand_options).merge(options),
           stripe_options
         )

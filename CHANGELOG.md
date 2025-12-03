@@ -2,6 +2,51 @@
 
 ### Unreleased
 
+### 11.4.0
+
+* Stripe v18 #1209
+* Fix `Pay::PaymentMethod.make_default! #1207
+
+### 11.3.1
+
+* Sync `Invoice` discount sources so they can be rendered in receipts without additional API calls
+  See: https://docs.stripe.com/changelog/clover/2025-09-30/add-discount-source-property?changelog-sdk=ruby#impact
+
+  You may need to re-sync Stripe charges to have the latest copy after this update.
+
+  ```ruby
+  Pay::Stripe::Charge.find_each { it.sync! }
+  ```
+
+### 11.3.0
+
+* Stripe v17 #1202
+* Fix payment method syncing when customer is deleted #1201
+
+### 11.2.3
+
+* Include `stripe_account` in `set_payment_processor` and `add_payment_processor` queries #1198
+
+### 11.2.2
+
+* Fix Stripe `subscriptions.renewing` webhook to use the correct account when retrieving the price
+
+### 11.2.1
+
+* Replace `owner` association with `delegate` since `has_one :through` doesn't work with polymorphic belongs_to without a `source_type`
+
+### 11.2.0
+
+* Add `has_one :owner, through: :customer` assocation to `Pay::Charge`, `Pay::Subscription` and `Pay::PaymentMethod` for convenience.
+
+### 11.1.3
+
+* Fix Stripe `Charge#refund!` to allow no arguments and default to refunding the full amount.
+
+### 11.1.2
+
+* Fix Stripe InvoicePayment syncing for old Charges without `payment_intent` attribute #1183
+
 ### 11.1.1
 
 * Add `retry` to `Pay::Stripe.sync_checkout_session`

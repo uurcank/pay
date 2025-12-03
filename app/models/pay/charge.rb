@@ -13,6 +13,8 @@ module Pay
     validates :amount, presence: true
     validates :processor_id, presence: true, uniqueness: {scope: :customer_id, case_sensitive: true}
 
+    delegate :owner, to: :customer
+
     # Payment method attributes
     store_accessor :data, :payment_method_type # card, paypal, sepa, etc
     store_accessor :data, :brand # Visa, Mastercard, Discover, PayPal
